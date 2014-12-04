@@ -24,6 +24,9 @@ def getInt(string):
 		i = 0
 	return i
 
+def encodeGroupsToJson(g):
+	return json.dumps(g)
+
 class JsonInfo():
 	def __init__(self, url):
 		self.info = json.loads(getURLContent(url))

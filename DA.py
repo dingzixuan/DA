@@ -9,6 +9,27 @@ jieba.load_userdict("acg_dict.txt")
 import jieba.posseg as pseg
 import jieba.analyse
 
+# 根据出现的时间序列，计算时间-频率坐标
+MIN_SAMPLING_WINDOW = 10 # 最小采样窗口 10s
+def getCoordinate(t_list):
+	coordinates = []
+	while len(t_list) > 0:
+		s = t_list[0]
+		cur_interval = 0
+		r = 0
+		for t in t_list:
+			r += 1
+			cur_interval = t - s
+			if cur_interval >= MIN_SAMPLING_WINDOW:
+				break
+		if t - s == 0:
+			freq = float(r/1.0)	# 若间隔为0，则用频数代替频率，认为间隔为1s
+		else:
+			freq =  float(r/(t - s))
+		coordinates.append({"x":s,"y":freq})
+		t_list = t_list[r:]
+	return coordinates
+
 # 二分查找，在从小到大排列的时间序列中找到和target最接近的坐标
 def biSearch(a, target):
 	low = 0
@@ -76,6 +97,7 @@ def DA_getKeywordsHits(d_list, top):
 # 我是本体！！上面的都是实验！！
 WINDOW = 30	# 最小窗口：30s
 def DA_getKeywordsGroups(d_list, top):
+	# 1. 分词词频统计
 	stop = [line.strip().decode('utf-8') for line in open('stopwords').readlines() ]	
 	keyword_hit_dict = {}
 	for d in d_list:
@@ -99,6 +121,7 @@ def DA_getKeywordsGroups(d_list, top):
 			else:
 				keyword_hit_dict[w] = {"hits":1, "occur":[d.time]}
 	keyword_hit_dict = sorted(keyword_hit_dict.items(), lambda x, y: -cmp(x[1]["hits"], y[1]["hits"]))[:top]
+	# 2. 关键词按时间序列聚类
 	groups = []	# 要返回的，关键词按时间序列聚类的结果
 	for k, keyword in keyword_hit_dict:
 		occur_time_list = keyword['occur']
@@ -140,7 +163,7 @@ def DA_getKeywordsGroups(d_list, top):
 						cur_window_freq = try_cur_window_freq
 					# 如果尝试向后加入一个新元素后导致freq小于平均值，则不加入,结束循环
 					else:
-						break		
+						break
 				# 循环结束，将当前window加入group中
 				# 考虑当前window中的总数，如果不到total的20%，则不考虑加入
 				hits = eind - sind + 1
@@ -148,12 +171,14 @@ def DA_getKeywordsGroups(d_list, top):
 					occur_time_list = occur_time_list[eind+1:]
 					continue
 				# TODO: 从occur区间截取绘图点
+				occur_time_in_window = occur_time_list[sind:eind+1]
 				area = {
 					"keyword": k,
 					"hits": hits,
 					"freq":cur_window_freq,
 					"start_time":stime,
-					"end_time":etime
+					"end_time":etime,
+					"coordinate":getCoordinate(occur_time_in_window)
 				}
 				groups.append(area)
 				occur_time_list = occur_time_list[eind+1:]
@@ -168,12 +193,13 @@ def main():
 	vedio.fetchDanmaku(save = True)
 	vedio.printVedioInfo()
 	keyword_groups = DA_getKeywordsGroups(vedio.getDanmaku(), 30)
-	for area in keyword_groups:
-		print "keyword:", area["keyword"]
-		print "hits:", area["hits"]
-		print "start:", area["start_time"]
-		print "end:", area["end_time"]
-		print "freq:", area["freq"]
+	print util.encodeGroupsToJson(keyword_groups)
+	# for area in keyword_groups:
+	# 	print "keyword:", area["keyword"]
+	# 	print "hits:", area["hits"]
+	# 	print "start:", area["start_time"]
+	# 	print "end:", area["end_time"]
+	# 	print "freq:", area["freq"]
 
 if __name__ == '__main__':
 	main()
